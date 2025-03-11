@@ -1,11 +1,40 @@
+import React, { useEffect } from 'react';
 import { Image, StyleSheet, Platform } from 'react-native';
+import { router } from 'expo-router';
+import { useAuth } from '@/lib/AuthContext';
 
 import { HelloWave } from '@/components/HelloWave';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 
-export default function HomeScreen() {
+export default function TabsIndex() {
+  console.log('🖥️ Rendering TabsIndex component');
+  
+  const { user, session, loading } = useAuth();
+
+  // Check authentication state and redirect if necessary
+  useEffect(() => {
+    console.log('🔍 TabsIndex: Checking authentication status');
+    console.log('🔍 Authentication state:', { loading, user: user ? 'exists' : null });
+    
+    if (loading) {
+      console.log('⏳ Still loading authentication state...');
+      return;
+    }
+    
+    if (!user) {
+      console.log('⚠️ User is not authenticated, redirecting to login screen');
+      router.replace('/login');
+    } else {
+      console.log('✅ User is authenticated, redirecting to home');
+      router.replace('/home');
+    }
+  }, [user, loading]);
+
+  console.log('🖼️ Rendering default tabs index UI (will be redirected)');
+
+  // The original content is still here but will be redirected quickly
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}

@@ -1,50 +1,141 @@
-# Welcome to your Expo app 👋
+# Attendx - Mobile Attendance Tracking App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A React Native mobile application built with Expo for tracking student attendance with a Tinder-like swiping interface.
 
-## Get started
+## Features
 
-1. Install dependencies
+- Teacher authentication via phone number
+- Class, date, and period selection
+- Tinder-like swipe interface for marking attendance (swipe left for absent, right for present)
+- Undo functionality to revert attendance marking
+- Preview and finalization of attendance records
+- Attendance data stored in Supabase database
+- JSON backup stored in Supabase storage
+- Enhanced logging for troubleshooting
+- Improved error handling and connection verification
 
-   ```bash
-   npm install
-   ```
+## Prerequisites
 
-2. Start the app
+- Node.js (v14 or newer)
+- npm or yarn
+- Expo CLI
+- Supabase account with the proper tables set up
 
-   ```bash
-    npx expo start
-   ```
+## Database Setup
 
-In the output, you'll find options to open the app in a
+Before running the app, make sure your Supabase database has the following structure:
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+1. Class tables (IT-A, IT-B, etc.) with the following columns:
+   - id (bigint, primary key)
+   - Name (text)
+   - Roll No (numeric)
+   - Register No (numeric)
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+2. Teachers table with the following columns:
+   - id (bigint, primary key)
+   - Name (text)
+   - Phone No (numeric)
 
-## Get a fresh project
+3. Create these tables using SQL:
 
-When you're ready, run:
+```sql
+-- Create the attendance_sessions table to track each attendance session
+CREATE TABLE attendance_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    class_name TEXT NOT NULL,
+    teacher_id BIGINT REFERENCES teachers(id),
+    session_date DATE NOT NULL,
+    period INTEGER NOT NULL CHECK (period BETWEEN 1 AND 6),
+    finalized BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    UNIQUE(class_name, session_date, period)
+);
 
-```bash
-npm run reset-project
+-- Create the attendance_records table to store individual student attendance
+CREATE TABLE attendance_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID REFERENCES attendance_sessions(id) ON DELETE CASCADE,
+    student_register_no NUMERIC NOT NULL,
+    student_roll_no NUMERIC NOT NULL,
+    student_name TEXT NOT NULL,
+    status BOOLEAN NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    UNIQUE(session_id, student_register_no)
+);
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+4. Create a storage bucket named "ledger" in your Supabase project
 
-## Learn more
+## Installation
 
-To learn more about developing your project with Expo, look at the following resources:
+1. Clone the repository:
+```
+git clone https://github.com/yourusername/attendx.git
+cd attendx
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+2. Install dependencies:
+```
+npm install
+```
 
-## Join the community
+3. Set up environment variables:
+   Create a `.env` file in the root directory with the following variables:
+   ```
+   EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+   Replace `your_supabase_url` and `your_supabase_anon_key` with your actual Supabase credentials.
 
-Join our community of developers creating universal apps.
+## Running the App
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```
+npm start
+```
+
+This will start the Expo development server. You can run the app on:
+- Android device/emulator using `npm run android`
+- iOS device/simulator using `npm run ios` (requires a Mac)
+- Web browser using `npm run web`
+
+## Architecture and Code Organization
+
+The app follows a clear structure:
+
+- `src/lib/supabase.ts` - Centralized Supabase client with connection verification
+- `src/navigation/AppNavigator.tsx` - Navigation structure with typed routes
+- `src/screens/` - Screen components for each view in the app
+- `App.tsx` - Main entry point with environment checking
+
+## Debugging and Troubleshooting
+
+### Supabase Connection Issues
+
+The app includes enhanced logging for Supabase connections. Check your console logs for:
+- `=== Supabase Client Initialization ===` - Shows whether credentials are properly configured
+- `✅ Supabase connection successful!` - Indicates successful connection
+- `❌ Supabase connection failed!` - Shows when connection fails, with detailed error information
+
+### Navigation Tracking
+
+Navigation events are logged with `=== Navigation: Navigated to "ScreenName" ===` format to help trace user flow.
+
+## Additional Dependencies
+
+The app uses the following key packages:
+- @supabase/supabase-js for database access
+- react-native-deck-swiper for the Tinder-like swipe interface
+- @react-navigation for app navigation
+- react-native-elements and other UI packages
+
+## Contributing
+
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+
+## License
+
+[MIT](https://choosealicense.com/licenses/mit/)
