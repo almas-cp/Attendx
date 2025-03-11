@@ -3,16 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 import { AppState } from 'react-native';
 import 'react-native-url-polyfill/auto';
 
-// Get the Supabase URL and keys from environment variables
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabaseServiceKey = process.env.EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY || '';
-
-// Validate that we have the required values
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('❌ ERROR: Missing Supabase environment variables!');
-  console.error('Make sure EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY are defined in .env.local');
-}
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL as string;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY as string;
+const supabaseServiceKey = process.env.EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY as string;
 
 console.log('🔐 Initializing Supabase client with URL:', supabaseUrl);
 
@@ -77,11 +70,6 @@ export const controlledStorage = new ControlledStorage();
 // By default, don't remember sessions
 controlledStorage.setRememberMe(false);
 
-// Check if we have the required keys before creating the client
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Supabase URL and anonymous key are required. Check your .env.local file.');
-}
-
 // Create client with anonymous key for most operations
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -92,32 +80,24 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// Create service role client for administrative operations (only if key is available)
-export const adminSupabase = supabaseServiceKey 
-  ? createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        persistSession: false // Never persist admin sessions
-      }
-    })
-  : supabase; // Fallback to regular client if service key not available
+// Create service role client for administrative operations
+// This should only be used for operations that require bypassing RLS
+export const adminSupabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    persistSession: false // Never persist admin sessions
+  }
+});
 
 // Set up app state change listener to refresh auth token when app comes to foreground
 AppState.addEventListener('change', (state) => {
   console.log('📱 App state changed to:', state);
   if (state === 'active') {
-    // First check if there's an existing session before attempting to refresh
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        console.log('🔄 App is active, refreshing authentication session');
-        supabase.auth.refreshSession().then(({ data, error }) => {
-          if (error) {
-            console.error('❌ Session refresh failed:', error.message);
-          } else {
-            console.log('✅ Session refreshed successfully', data.session ? 'with new session' : 'but no session available');
-          }
-        });
+    console.log('🔄 App is active, refreshing authentication session');
+    supabase.auth.refreshSession().then(({ data, error }) => {
+      if (error) {
+        console.error('❌ Session refresh failed:', error.message);
       } else {
-        console.log('ℹ️ No active session to refresh');
+        console.log('✅ Session refreshed successfully', data.session ? 'with new session' : 'but no session available');
       }
     });
   }
