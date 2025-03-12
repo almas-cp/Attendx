@@ -81,11 +81,18 @@ export default function HomeScreen() {
             <Text style={styles.actionButtonText}>Mark Attendance</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.actionButton} testID="view-records-button">
+          <TouchableOpacity 
+            style={styles.actionButton} 
+            testID="view-records-button"
+          >
             <Text style={styles.actionButtonText}>View Records</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.actionButton} testID="settings-button">
+          <TouchableOpacity 
+            style={styles.actionButton} 
+            testID="settings-button"
+            onPress={() => router.push('/settings')}
+          >
             <Text style={styles.actionButtonText}>Settings</Text>
           </TouchableOpacity>
         </View>
