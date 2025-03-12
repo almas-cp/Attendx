@@ -45,6 +45,11 @@ export default function MarkAttendance() {
   const [attendanceData, setAttendanceData] = useState<AttendanceData>({});
   const [classes, setClasses] = useState<string[]>([]);
   
+  // New state variables for chip selection
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [selectedYear, setSelectedYear] = useState<string>('');
+  const [selectedClassLetter, setSelectedClassLetter] = useState<string>('');
+
   // Animation properties
   const position = useRef(new Animated.ValueXY()).current;
   const rotate = position.x.interpolate({
@@ -147,23 +152,15 @@ export default function MarkAttendance() {
     try {
       setIsLoading(true);
       
-      if (!selectedClass) {
-        console.log('No class selected');
-        Alert.alert('Error', 'Please select a class');
-        setIsLoading(false);
-        return;
-      }
-      
       console.log('DEBUG START --------------------------------');
       console.log(`Selected class: ${selectedClass}`);
       
-      // Map display class name to actual table name
-      const tableMap: {[key: string]: string} = {
-        'IT-A': 'ita',
-        'IT-B': 'itb'
-      };
+      // Extract the department and class letter for table mapping
+      // For example, from "IT3A" we need to get "ita"
+      const department = selectedClass.substring(0, 2).toLowerCase();
+      const classLetter = selectedClass.charAt(selectedClass.length - 1).toLowerCase();
+      const tableName = `${department}${classLetter}`;
       
-      const tableName = tableMap[selectedClass] || selectedClass.toLowerCase().replace('-', '');
       console.log(`Mapped table name: "${tableName}"`);
       
       // Important: Check for user authentication status
@@ -183,7 +180,7 @@ export default function MarkAttendance() {
       try {
         // Using a simpler query that PostgREST supports
         const { data: testData, error: testError } = await supabase
-          .from('ita')
+          .from(tableName)
           .select('id')
           .limit(1);
           
@@ -450,14 +447,11 @@ export default function MarkAttendance() {
       // Convert attendance data to JSON string safely
       const attendanceDataJson = JSON.stringify(attendanceData);
       
-      // Map display class name to actual table name
-      const tableMap: {[key: string]: string} = {
-        'IT-A': 'ita',
-        'IT-B': 'itb'
-      };
-      
-      // Get actual table name for the selected class
-      const tableName = tableMap[selectedClass] || selectedClass.toLowerCase().replace('-', '');
+      // Extract the department and class letter for table mapping
+      // For example, from "IT3A" we need to get "ita"
+      const department = selectedClass.substring(0, 2).toLowerCase();
+      const classLetter = selectedClass.charAt(selectedClass.length - 1).toLowerCase();
+      const tableName = `${department}${classLetter}`;
       
       // Debug - check if values are present
       console.log('Parameters for preview (navigateToPreview):', {
@@ -513,7 +507,18 @@ export default function MarkAttendance() {
   };
 
   const startAttendanceMarking = () => {
-    if (!selectedClass) {
+    // Validate selections
+    if (!selectedDepartment) {
+      Alert.alert('Error', 'Please select a department');
+      return;
+    }
+    
+    if (!selectedYear) {
+      Alert.alert('Error', 'Please select a year');
+      return;
+    }
+    
+    if (!selectedClassLetter) {
       Alert.alert('Error', 'Please select a class');
       return;
     }
@@ -523,6 +528,18 @@ export default function MarkAttendance() {
       return;
     }
     
+    // Generate class name for display and identification purposes
+    const displayClassName = `${selectedDepartment}${selectedYear}${selectedClassLetter}`;
+    
+    // For database table lookup, we only use department + class letter (not year)
+    // This matches the actual table names like 'ita', 'itb', 'csea', etc.
+    const tableName = `${selectedDepartment}${selectedClassLetter}`.toLowerCase();
+    
+    setSelectedClass(displayClassName);
+    
+    // Log for debugging
+    console.log(`Selected: ${displayClassName}, Using table: ${tableName}`);
+    
     loadStudents();
   };
 
@@ -531,34 +548,96 @@ export default function MarkAttendance() {
       <Text style={styles.title}>Mark Attendance</Text>
       
       <View style={styles.selectionContainer}>
-        <Text style={styles.label}>Select Class:</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={selectedClass}
-            onValueChange={(value) => setSelectedClass(value)}
-            style={styles.picker}
-          >
-            {classes.length > 0 ? (
-              classes.map((className) => (
-                <Picker.Item key={className} label={className} value={className} />
-              ))
-            ) : (
-              <Picker.Item label="No classes available" value="" />
-            )}
-          </Picker>
+        <Text style={styles.sectionTitle}>Department</Text>
+        <View style={styles.chipContainer}>
+          {['IT', 'CS', 'EC', 'MECH', 'CIVIL', 'EEE'].map((dept) => (
+            <TouchableOpacity
+              key={dept}
+              style={[
+                styles.chip,
+                selectedDepartment === dept && styles.selectedChip
+              ]}
+              onPress={() => setSelectedDepartment(dept)}
+            >
+              <Text 
+                style={[
+                  styles.chipText,
+                  selectedDepartment === dept && styles.selectedChipText
+                ]}
+              >
+                {dept}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
         
-        <Text style={styles.label}>Select Hour:</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={selectedHour}
-            onValueChange={(value) => setSelectedHour(value)}
-            style={styles.picker}
-          >
-            {[1, 2, 3, 4, 5, 6].map((hour) => (
-              <Picker.Item key={hour} label={`Hour ${hour}`} value={hour.toString()} />
-            ))}
-          </Picker>
+        <Text style={styles.sectionTitle}>Year</Text>
+        <View style={styles.chipContainer}>
+          {['1', '2', '3', '4'].map((year) => (
+            <TouchableOpacity
+              key={year}
+              style={[
+                styles.chip,
+                selectedYear === year && styles.selectedChip
+              ]}
+              onPress={() => setSelectedYear(year)}
+            >
+              <Text 
+                style={[
+                  styles.chipText,
+                  selectedYear === year && styles.selectedChipText
+                ]}
+              >
+                {year}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        
+        <Text style={styles.sectionTitle}>Class</Text>
+        <View style={styles.chipContainer}>
+          {['A', 'B'].map((classLetter) => (
+            <TouchableOpacity
+              key={classLetter}
+              style={[
+                styles.chip,
+                selectedClassLetter === classLetter && styles.selectedChip
+              ]}
+              onPress={() => setSelectedClassLetter(classLetter)}
+            >
+              <Text 
+                style={[
+                  styles.chipText,
+                  selectedClassLetter === classLetter && styles.selectedChipText
+                ]}
+              >
+                {classLetter}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        
+        <Text style={styles.sectionTitle}>Hour</Text>
+        <View style={styles.chipContainer}>
+          {['1', '2', '3', '4', '5', '6'].map((hour) => (
+            <TouchableOpacity
+              key={hour}
+              style={[
+                styles.chip,
+                selectedHour === hour && styles.selectedChip
+              ]}
+              onPress={() => setSelectedHour(hour)}
+            >
+              <Text 
+                style={[
+                  styles.chipText,
+                  selectedHour === hour && styles.selectedChipText
+                ]}
+              >
+                {hour}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
       
@@ -926,5 +1005,39 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 16,
+    marginBottom: 8,
+    color: '#333',
+  },
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 10,
+  },
+  chip: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#f0f2f5',
+    marginRight: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  selectedChip: {
+    backgroundColor: '#6c63ff',
+    borderColor: '#6c63ff',
+  },
+  chipText: {
+    fontSize: 14,
+    color: '#555',
+    fontWeight: '500',
+  },
+  selectedChipText: {
+    color: '#fff',
   },
 });

@@ -28,6 +28,14 @@ type AttendanceData = {
   [key: string]: boolean | null;
 };
 
+type StudentItem = {
+  id: string;
+  roll_number: string | number;
+  name: string;
+  register_number?: string | number;
+  isPresent: boolean | null;
+};
+
 export default function PreviewScreen() {
   const { user, session } = useAuth();
   const params = useLocalSearchParams();
@@ -74,14 +82,13 @@ export default function PreviewScreen() {
       }
 
       console.log(`Loading from class: ${className}`);
-
-      // Map display class name to actual table name
-      const tableMap: {[key: string]: string} = {
-        'IT-A': 'ita',
-        'IT-B': 'itb'
-      };
       
-      const actualTableName = tableMap[className] || className.toLowerCase().replace('-', '');
+      // Extract the department and class letter for table mapping
+      // For example, from "IT3A" we need to get "ita"
+      const department = className.substring(0, 2).toLowerCase();
+      const classLetter = className.charAt(className.length - 1).toLowerCase();
+      const actualTableName = `${department}${classLetter}`;
+      
       console.log(`Using table name: ${actualTableName}`);
 
       // Load ALL students from the class instead of just one
@@ -131,8 +138,10 @@ export default function PreviewScreen() {
       setIsSaving(true);
       console.log('Starting attendance save process');
       
-      // Use the actual table name
-      const actualTableName = tableName || className.toLowerCase().replace('-', '');
+      // Extract the department and class letter for table mapping
+      const department = className.substring(0, 2).toLowerCase();
+      const classLetter = className.charAt(className.length - 1).toLowerCase();
+      const actualTableName = `${department}${classLetter}`;
       
       // Format attendance data for saving with updated column names
       const formattedData = {
@@ -297,7 +306,7 @@ export default function PreviewScreen() {
     </View>
   );
 
-  const renderItem = ({ item }) => {
+  const renderItem = ({ item }: { item: StudentItem }) => {
     // Get status info
     const isPresentIcon = item.isPresent 
       ? <MaterialIcons name="check-box" size={24} color="#4cd964" />
@@ -313,7 +322,7 @@ export default function PreviewScreen() {
       >
         <Text style={[styles.tableCell, { flex: 0.2 }]}>#{item.roll_number}</Text>
         <Text style={[styles.tableCell, { flex: 0.5 }]}>{item.name}</Text>
-        <View style={[styles.tableCell, styles.statusCell, { flex: 0.3 }]}>
+        <View style={[styles.tableCell, styles.statusCell, { flex: 0.3 } as any]}>
           {isPresentIcon}
           <Text style={item.isPresent ? styles.presentText : styles.absentText}>
             {statusText}
@@ -376,8 +385,8 @@ export default function PreviewScreen() {
           {renderTableHeader()}
           
           {/* Student list */}
-          <FlatList
-            data={students}
+          <FlatList<StudentItem>
+            data={students as StudentItem[]}
             renderItem={renderItem}
             keyExtractor={(item) => item.id.toString()}
             contentContainerStyle={styles.listContainer}
@@ -637,12 +646,12 @@ const styles = StyleSheet.create({
   },
   presentText: {
     color: '#4cd964',
-    fontWeight: 'bold',
+    marginLeft: 5,
     fontSize: 14,
   },
   absentText: {
     color: '#ff6b6b',
-    fontWeight: 'bold',
+    marginLeft: 5,
     fontSize: 14,
   },
 }); 
