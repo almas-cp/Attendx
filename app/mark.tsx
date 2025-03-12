@@ -73,24 +73,38 @@ export default function MarkAttendance() {
     ],
   };
 
-  // Set up gestures for swiping
+  // Set up gestures for swiping - recreate panResponder when currentIndex changes
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderMove: (event, gesture) => {
-        position.setValue({ x: gesture.dx, y: gesture.dy });
+        // Only allow swiping if we have a valid student at current index
+        if (currentIndex < students.length) {
+          position.setValue({ x: gesture.dx, y: gesture.dy });
+        }
       },
       onPanResponderRelease: (event, gesture) => {
-        if (gesture.dx > SWIPE_THRESHOLD) {
-          swipeRight();
-        } else if (gesture.dx < -SWIPE_THRESHOLD) {
-          swipeLeft();
+        // Only process swipe if we have a valid student at current index
+        if (currentIndex < students.length) {
+          if (gesture.dx > SWIPE_THRESHOLD) {
+            swipeRight();
+          } else if (gesture.dx < -SWIPE_THRESHOLD) {
+            swipeLeft();
+          } else {
+            resetPosition();
+          }
         } else {
+          // Reset position if we're out of bounds
           resetPosition();
         }
       },
     })
   ).current;
+
+  // Reset position when currentIndex changes
+  useEffect(() => {
+    position.setValue({ x: 0, y: 0 });
+  }, [currentIndex]);
 
   useEffect(() => {
     // Redirect to login if not authenticated
@@ -306,6 +320,8 @@ export default function MarkAttendance() {
         setAttendanceData(initialAttendance);
         setCurrentIndex(0);
         setMarkingStarted(true);
+        // Reset position when loading new students
+        position.setValue({ x: 0, y: 0 });
         console.log('Student data loaded and formatted successfully');
       } else {
         console.log(`No students found in class ${selectedClass} (table: ${tableName})`);
@@ -337,25 +353,39 @@ export default function MarkAttendance() {
   };
 
   const swipeRight = () => {
-    // Mark as present
-    markAttendance(true);
-    
-    Animated.timing(position, {
-      toValue: { x: width + 100, y: 0 },
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => nextCard());
+    // Check if we have a valid student at current index
+    if (currentIndex < students.length) {
+      // Mark as present
+      const studentId = students[currentIndex]?.id;
+      console.log(`Marking student ${studentId} (index: ${currentIndex}) as PRESENT`);
+      markAttendance(true);
+      
+      Animated.timing(position, {
+        toValue: { x: width + 100, y: 0 },
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => nextCard());
+    } else {
+      console.log(`Cannot mark student at index ${currentIndex} as PRESENT - index out of bounds`);
+    }
   };
 
   const swipeLeft = () => {
-    // Mark as absent
-    markAttendance(false);
-    
-    Animated.timing(position, {
-      toValue: { x: -width - 100, y: 0 },
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => nextCard());
+    // Check if we have a valid student at current index
+    if (currentIndex < students.length) {
+      // Mark as absent
+      const studentId = students[currentIndex]?.id;
+      console.log(`Marking student ${studentId} (index: ${currentIndex}) as ABSENT`);
+      markAttendance(false);
+      
+      Animated.timing(position, {
+        toValue: { x: -width - 100, y: 0 },
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => nextCard());
+    } else {
+      console.log(`Cannot mark student at index ${currentIndex} as ABSENT - index out of bounds`);
+    }
   };
 
   const resetPosition = () => {
@@ -369,23 +399,43 @@ export default function MarkAttendance() {
   const markAttendance = (isPresent: boolean) => {
     if (currentIndex < students.length) {
       const studentId = students[currentIndex].id;
-      setAttendanceData(prev => ({
-        ...prev,
-        [studentId]: isPresent
-      }));
+      console.log(`Setting attendance for student ${studentId} (index: ${currentIndex}) to ${isPresent ? 'PRESENT' : 'ABSENT'}`);
+      
+      // Log the current state of attendance data for this student
+      console.log(`Previous attendance state for student ${studentId}: ${attendanceData[studentId] === null ? 'NOT MARKED' : attendanceData[studentId] ? 'PRESENT' : 'ABSENT'}`);
+      
+      setAttendanceData(prev => {
+        const newData = {
+          ...prev,
+          [studentId]: isPresent
+        };
+        console.log(`Updated attendance data - Total marked: ${Object.values(newData).filter(v => v !== null).length}/${students.length}`);
+        return newData;
+      });
+    } else {
+      console.log(`Attempted to mark attendance for index ${currentIndex} which is out of bounds (total: ${students.length})`);
     }
   };
 
   const nextCard = () => {
+    // Reset position first to avoid animation glitches
     position.setValue({ x: 0, y: 0 });
-    if (currentIndex < students.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-    } else {
-      // All students marked, show completion screen
-      // Do NOT navigate automatically to prevent state issues
-      console.log('All students have been marked');
-      setCurrentIndex(students.length); // This will trigger the completion screen
-    }
+    
+    // Use a functional update to ensure we're working with the latest state
+    setCurrentIndex(prevIndex => {
+      // Store current students length in a local variable to avoid race conditions
+      const studentsLength = students.length;
+      const newIndex = prevIndex + 1;
+      console.log(`Moving from student ${prevIndex} to ${newIndex} of ${studentsLength} total students`);
+      
+      if (prevIndex < studentsLength - 1) {
+        return newIndex;
+      } else {
+        // All students marked, show completion screen
+        console.log(`All students have been marked (${studentsLength} total)`);
+        return studentsLength; // This will trigger the completion screen
+      }
+    });
   };
 
   // Updated to navigate to preview with all students' data
@@ -457,6 +507,8 @@ export default function MarkAttendance() {
       
       // Go back to previous card
       setCurrentIndex(currentIndex - 1);
+      // Reset position when going back to previous card
+      position.setValue({ x: 0, y: 0 });
     }
   };
 
@@ -528,7 +580,14 @@ export default function MarkAttendance() {
   );
 
   const renderAttendanceMarking = () => {
-    if (students.length === 0) {
+    // Store students length in a local variable to avoid race conditions
+    const studentsLength = students.length;
+    
+    // Log the current state for debugging
+    console.log(`Rendering attendance marking. Students length: ${studentsLength}, currentIndex: ${currentIndex}`);
+    
+    if (studentsLength === 0) {
+      console.log('Rendering empty students view');
       return (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No students found in this class</Text>
@@ -542,7 +601,8 @@ export default function MarkAttendance() {
       );
     }
 
-    if (currentIndex >= students.length) {
+    if (currentIndex >= studentsLength) {
+      console.log(`Rendering completion screen. currentIndex: ${currentIndex}, students.length: ${studentsLength}`);
       return (
         <View style={styles.completeContainer}>
           <Text style={styles.completeText}>Attendance marking complete!</Text>
@@ -556,7 +616,29 @@ export default function MarkAttendance() {
       );
     }
 
+    // Make sure we have a valid student at the current index
+    if (!students[currentIndex]) {
+      console.log(`Error: No student found at index ${currentIndex}`);
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>Error loading student data</Text>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => setMarkingStarted(false)}
+          >
+            <Text style={styles.buttonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    
     const currentStudent = students[currentIndex];
+    console.log(`Rendering card for student ${currentStudent.id} (${currentStudent.name}), index: ${currentIndex}/${students.length-1}`);
+    
+    // Store student data in local variables to prevent race conditions
+    const studentId = currentStudent.id;
+    const studentName = currentStudent.name;
+    const studentRollNumber = currentStudent.roll_number;
 
     return (
       <View style={styles.markingContainer}>
@@ -574,8 +656,8 @@ export default function MarkAttendance() {
           {...panResponder.panHandlers}
         >
           <View style={styles.studentInfoContainer}>
-            <Text style={styles.rollNumber}>#{currentStudent.roll_number}</Text>
-            <Text style={styles.studentName}>{currentStudent.name}</Text>
+            <Text style={styles.rollNumber}>#{studentRollNumber}</Text>
+            <Text style={styles.studentName}>{studentName}</Text>
           </View>
           
           <Animated.View style={[styles.presentBadge, { opacity: rightOpacity }]}>
@@ -845,4 +927,4 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-}); 
+});
